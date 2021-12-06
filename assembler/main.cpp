@@ -17,9 +17,9 @@ int main(int argc, char ** argv) {
 
     Parser parser;
     
-    parser.setDebug(true);
+    //parser.setDebug(true);
     
-    printf("ZVM Assembler v0.2 (https://github.com/zarat/zvm)\n");
+    printf("VM Assembler v1.0 (https://github.com/zarat/vm)\n");
     
     if(argc == 3) {
         
