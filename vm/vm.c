@@ -42,7 +42,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 /* GLOBALS */
 unsigned int *program;
-unsigned int regs[NUM_REG + 1]; 
+int regs[NUM_REG + 1]; 
 
 int instrNum, reg1, reg2, reg3, value = 0; 
 
@@ -167,33 +167,57 @@ void fetch(int *instr) {
 
 void regDump() {
     printf("\nREGISTERS # # # # # # # # # # # # # # # # # # # # # # # # #\n");
-    printf("AX: 0x%08x,\tBX: 0x%08x\tCX: 0x%08x,\tDX: 0x%08x\n", regs[1], regs[2], regs[3], regs[4]);
-    printf("R1: 0x%04x, R2: 0x%04x, R3: 0x%04x, R4: 0x%04x, R5: 0x%04x, R6: 0x%04x\n", regs[5], regs[6], regs[7], regs[8], regs[9], regs[10]);
-    printf("\nR7:\t%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c %04x %d", BYTE2BIN(regs[11]), regs[11], regs[11]);
-    printf("\nR8:\t%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c %04x %d", BYTE2BIN(regs[12]), regs[12], regs[12]);    
-    printf("\nR9:\t%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c %04x %d", BYTE2BIN(regs[13]), regs[13], regs[13]);
-    printf("\nR10:\t%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c.%c%c%c%c%c%c%c%c %04x %d", BYTE2BIN(regs[14]), regs[14], regs[14]);
-    printf("\nz:%d", (zeroflag) ? 1:0);
+    
+    //printf("AX: 0x%08x,\tBX: 0x%08x\tCX: 0x%08x,\tDX: 0x%08x\n", regs[1], regs[2], regs[3], regs[4]);
+    printf("AX:\t%s 0x%08x %d", int2bin(regs[1]), regs[1], regs[1]);
+    printf("\nBX:\t%s 0x%08x %d", int2bin(regs[2]), regs[2], regs[2]);
+    printf("\nCX:\t%s 0x%08x %d", int2bin(regs[3]), regs[3], regs[3]);
+    printf("\nDX:\t%s 0x%08x %d", int2bin(regs[4]), regs[4], regs[4]);
+    
+    printf("\n");
+    
+    //printf("R1: 0x%08x, R2: 0x%08x, R3: 0x%08x\nR4: 0x%08x, R5: 0x%08x, R6: 0x%08x\n", regs[5], regs[6], regs[7], regs[8], regs[9], regs[10]);
+    printf("\nR1:\t%s 0x%08x %d", int2bin(regs[5]), regs[5], regs[5]);
+    printf("\nR2:\t%s 0x%08x %d", int2bin(regs[6]), regs[6], regs[6]);
+    printf("\nR3:\t%s 0x%08x %d", int2bin(regs[7]), regs[7], regs[7]);
+    printf("\nR4:\t%s 0x%08x %d", int2bin(regs[8]), regs[8], regs[8]);
+    printf("\nR5:\t%s 0x%08x %d", int2bin(regs[9]), regs[9], regs[9]);
+    
+    printf("\n");
+    
+    printf("\nR6:\t%s 0x%08x %d", int2bin(regs[10]), regs[10], regs[10]);    
+    printf("\nR7:\t%s 0x%08x %d", int2bin(regs[11]), regs[11], regs[11]);
+    printf("\nR8:\t%s 0x%08x %d", int2bin(regs[12]), regs[12], regs[12]);    
+    printf("\nR9:\t%s 0x%08x %d", int2bin(regs[13]), regs[13], regs[13]);
+    printf("\nR10:\t%s 0x%08x %d", int2bin(regs[14]), regs[14], regs[14]);
+    
+    printf("\n\nzeroflag: %d", (zeroflag) ? 1:0);
+    
     printf("\n# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #\n\n");
 }
 
 void stackDump() {
     int i = pstack;
     int col = 0;
-    printf("\nSTACK DUMP <-- <--# # # # # # # # # # # # # # # # # # # # #\n");
+    printf("\nSTACK DUMP # # # # # # # # # # # # # # # # # # # # # # # #\n");
     char *pattern;
     switch(displayMode) {
-        case 0: pattern = "0x%02x "; break;
+        case 0: pattern = "0x%08x "; break;
         case 1: pattern = "%d "; break;
         case 2: pattern = "%c "; break;
-        default: pattern = "0x%02x "; break;
-    }     
-    while(i > 0) {
-        printf(pattern, stack[--i]); col++;
-        if(col == 16) { printf("\n"); col = 0; } 
-        if(i==0) printf("\n");           
+        default: pattern = "0x%08x "; break;
     }
-    printf("TOTAL: %d (bytes)", pstack*4 );
+    if(i > 0) {
+        printf(pattern, stack[--i]);     
+        printf(" <-- top\n");
+    }
+    while(i > 0) {
+        printf(pattern, stack[--i]); //col++;
+        //if(col == 16) { printf("\n"); col = 0; } 
+        //if(i==0) 
+        printf("\n");           
+    }
+    printf("TOTAL: %d elements / %d bytes", pstack, pstack*4 );
     printf("\n# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #\n\n"); 
 }
 
@@ -216,7 +240,7 @@ void memDump() {
             printf(pattern, ptr->data[i]);
         printf("\n"); vSize += ptr->len; ptr = ptr->next; count++;
     }	
-    printf("Virtual addresses: %d, Stored data: %d (bytes)\n", count, vSize );
+    printf("TOTAL: %d elements / %d bytes\n", count, vSize );
     printf("# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #\n\n");
     free(ptr);
 }
@@ -289,10 +313,20 @@ void eval() {
             the value remains on the stack, if you want to clear it use push
             */
             
+            /*
             int i = popv();
             regs[reg1] = i;
-            push(i); // todo
+            push(i);
+            */
             
+            unsigned char *tmp = (unsigned char *)malloc(4);
+            
+            memcpy(tmp, &stack[--pstack], 4);
+            
+            pstack++;
+
+            memcpy(&regs[reg1], tmp, 4);
+
 			break;
 		}
         case LDM: {
@@ -640,23 +674,23 @@ void eval() {
             if(arith_mode == ARITH_FLOAT) {
             
                 // create a float from dst
-                float f1; //= (float)regs[reg1];
+                float f1; // = regs[reg1];
                 memcpy(&f1, &regs[reg1], 4);
                 
                 // create other float either by reg2 or value
                 float f2;                
                 if(reg2 != 0) { 
+                    memcpy(&f2, &regs[reg2], 4); 
                     //f2 = (float)regs[reg2];
-                    memcpy(&f2, &regs[reg2], 4);
                 } else { 
-                    f2 = (float)value;
                     //memcpy(&f2, &value, 4);
+                    f2 = value;
                 }
-                   
+                    
                 // Now we have 2 float values.
-                //printf("\n<f1: %f, f2: %f>\n", f1, f2);
+                //printf("\n<ADD f1: %f, f2: %f>\n", f1, f2);
                 
-                // add them together
+                // div them together
                 f1 += f2;
                 
                 // and copy as float into reg1
@@ -728,23 +762,23 @@ void eval() {
             if(arith_mode == ARITH_FLOAT) {
             
                 // create a float from dst
-                float f1; //= (float)regs[reg1];
+                float f1; // = regs[reg1];
                 memcpy(&f1, &regs[reg1], 4);
                 
                 // create other float either by reg2 or value
                 float f2;                
                 if(reg2 != 0) { 
+                    memcpy(&f2, &regs[reg2], 4); 
                     //f2 = (float)regs[reg2];
-                    memcpy(&f2, &regs[reg2], 4);
                 } else { 
-                    f2 = (float)value;
                     //memcpy(&f2, &value, 4);
+                    f2 = value;
                 }
                     
                 // Now we have 2 float values.
-                //printf("<f1: %f, f2: %f>", f1, f2);
+                //printf("\n<SUB f1: %f, f2: %f>\n", f1, f2);
                 
-                // sub them together
+                // div them together
                 f1 -= f2;
                 
                 // and copy as float into reg1
@@ -817,23 +851,20 @@ void eval() {
             if(arith_mode == ARITH_FLOAT) {
             
                 // create a float from dst
-                float f1; //= (float)regs[reg1];
-                memcpy(&f1, &regs[reg1], 4);
+                float f1 = regs[reg1];
                 
                 // create other float either by reg2 or value
                 float f2;                
                 if(reg2 != 0) { 
-                    //f2 = (float)regs[reg2];
-                    memcpy(&f2, &regs[reg2], 4);
+                    f2 = regs[reg2];
                 } else { 
-                    f2 = (float)value;
-                    //memcpy(&f2, &value, 4);
+                    f2 = value;
                 }
                     
                 // Now we have 2 float values.
-                //printf("<f1: %f, f2: %f>", f1, f2);
+                //printf("\n<MUL f1: %f, f2: %f>\n", f1, f2);
                 
-                // mul them together
+                // div them together
                 f1 *= f2;
                 
                 // and copy as float into reg1
@@ -906,21 +937,18 @@ void eval() {
             if(arith_mode == ARITH_FLOAT) {
             
                 // create a float from dst
-                float f1; //= (float)regs[reg1];
-                memcpy(&f1, &regs[reg1], 4);
+                float f1 = regs[reg1];
                 
                 // create other float either by reg2 or value
                 float f2;                
                 if(reg2 != 0) { 
-                    //f2 = (float)regs[reg2];
-                    memcpy(&f2, &regs[reg2], 4);
+                    f2 = regs[reg2];
                 } else { 
-                    f2 = (float)value;
-                    //memcpy(&f2, &value, 4);
+                    f2 = value;
                 }
                     
                 // Now we have 2 float values.
-                //printf("\nDIV <f1: %f, f2: %f>\n", f1, f2);
+                // printf("\n<DIV f1: %f, f2: %f>\n", f1, f2);
                 
                 // div them together
                 f1 /= f2;
@@ -1367,11 +1395,29 @@ void eval() {
             break;
         }
         case INC: {
-            regs[reg1] += 1;
+            if(arith_mode == ARITH_CHAR || arith_mode == ARITH_INT) {
+                regs[reg1] += 1;
+            }
+            else {
+                float f; 
+                memcpy(&f, &regs[reg1], 4); // = regs[reg1];
+                f += 1.0f;
+                //printf("<INC f=%f>", f);
+                memcpy(&regs[reg1], &f, 4);
+            }
             break;
         }
         case DEC: {
-            regs[reg1] -= 1;
+            if(arith_mode == ARITH_CHAR || arith_mode == ARITH_INT) {
+                regs[reg1] -= 1;
+            }
+            else {
+                float f; 
+                memcpy(&f, &regs[reg1], 4); // = regs[reg1];
+                f -= 1.0f;
+                //printf("<DEC f=%f>", f);
+                memcpy(&regs[reg1], &f, 4);
+            }
             break;
         }
         case CALL: {
@@ -1594,20 +1640,20 @@ void realTime() {
             printf("> ");
             fgets(command, 1024, stdin);
             command[strcspn(command, "\n")] = '\0';
-            if(startsWith("sta", command)) stackDump();
-            if(startsWith("mem", command)) memDump();
-            if(startsWith("reg", command)) regDump();
-            if(startsWith("quit", command)) return;
-            if(startsWith("help", command)) {
+            if( memcmp(command, "sta", 3) ) stackDump();
+            if(memcmp(command, "mem", 3)) memDump();
+            if(memcmp(command, "reg", 3)) regDump();
+            if(memcmp(command, "quit", 4)) return;
+            if(memcmp(command, "help", 4)) {
                 printf("Available commands:\n\tregister\tshow registers\n\tstack\t\tshow stack\n\tmemory\t\tshow memory\n\tclear\t\tclear data\n\tload <file>\tload program\n\tquit\t\texit vm\n");
             }
-            if(startsWith("clear", command)) {
+            if(memcmp(command, "clear", 5)) {
                 //readStorage();
                 memset(regs, 0, sizeof(regs));
                 memset(stack, 0, STACK_SIZE);
                 pstack = 0;
             }
-            if(startsWith("dis", command)) {
+            if(memcmp(command, "dis", 3)) {
                 char *token = strtok(command, " ");
                 int displayModeCounter = 0;                                                                                        
                 while(token != NULL) {
@@ -1620,7 +1666,7 @@ void realTime() {
                 }
                 token = NULL;
             }
-            if(startsWith("exec", command)) {
+            if(memcmp(command, "exec", 4)) {
                 char *token = strtok(command, " ");
                 int displayModeCounter = 0;                                                                                        
                 while(token != NULL) {
@@ -1632,7 +1678,7 @@ void realTime() {
                 }
                 token = NULL;
             }
-            if(startsWith("load", command)) {
+            if(memcmp(command, "load", 4)) {
                 char *token = strtok(command, " ");
                 int c = 0;
                 char *code;
