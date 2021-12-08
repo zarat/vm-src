@@ -1640,20 +1640,20 @@ void realTime() {
             printf("> ");
             fgets(command, 1024, stdin);
             command[strcspn(command, "\n")] = '\0';
-            if( memcmp(command, "sta", 3) ) stackDump();
-            if(memcmp(command, "mem", 3)) memDump();
-            if(memcmp(command, "reg", 3)) regDump();
-            if(memcmp(command, "quit", 4)) return;
-            if(memcmp(command, "help", 4)) {
+            if(startsWith("sta", command)) stackDump();
+            if(startsWith("mem", command)) memDump();
+            if(startsWith("reg", command)) regDump();
+            if(startsWith("quit", command)) return;
+            if(startsWith("help", command)) {
                 printf("Available commands:\n\tregister\tshow registers\n\tstack\t\tshow stack\n\tmemory\t\tshow memory\n\tclear\t\tclear data\n\tload <file>\tload program\n\tquit\t\texit vm\n");
             }
-            if(memcmp(command, "clear", 5)) {
+            if(startsWith("clear", command)) {
                 //readStorage();
                 memset(regs, 0, sizeof(regs));
                 memset(stack, 0, STACK_SIZE);
                 pstack = 0;
             }
-            if(memcmp(command, "dis", 3)) {
+            if(startsWith("dis", command)) {
                 char *token = strtok(command, " ");
                 int displayModeCounter = 0;                                                                                        
                 while(token != NULL) {
@@ -1666,7 +1666,7 @@ void realTime() {
                 }
                 token = NULL;
             }
-            if(memcmp(command, "exec", 4)) {
+            if(startsWith("exec", command)) {
                 char *token = strtok(command, " ");
                 int displayModeCounter = 0;                                                                                        
                 while(token != NULL) {
@@ -1678,7 +1678,7 @@ void realTime() {
                 }
                 token = NULL;
             }
-            if(memcmp(command, "load", 4)) {
+            if(startsWith("load", command)) {
                 char *token = strtok(command, " ");
                 int c = 0;
                 char *code;
