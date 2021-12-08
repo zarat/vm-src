@@ -106,3 +106,8 @@ void catch_function(int sig) {
     return;
 }
 
+/* check if a given string starts with a given substring */
+bool startsWith(const char *key, const char *str) {
+    size_t lenKey = strlen(key), lenStr = strlen(str);
+    return lenStr < lenKey ? false : memcmp(key, str, lenKey) == 0;
+}
