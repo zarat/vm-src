@@ -245,18 +245,10 @@ void memDump() {
     free(ptr);
 }
 
-int keyDown = 0;
-int lastKey = 0;
-
 void eval() {
 
     if(debug) {
         printf("rs: %d, ps %d, pc: %d\t| ins: %d, r1: %d, r2: %d, val: %d\n", rstack, pstack, pc, instrNum, reg1, reg2, value); 
-    }
-
-    if(kbhit()) {
-        keyDown = 1;
-        lastKey = getch();  
     }
     
 	switch(instrNum) {
@@ -1460,28 +1452,7 @@ void eval() {
                     break;
                 case 5:
                     regDump();
-                    break;
-                    
-                // is a key down?
-                case 6: {
-                    push(keyDown); 
-                    keyDown = 0;
-                    break;
-                }
-                // which key was down    
-                case 7: {
-                    push(lastKey);
-                    lastKey = 0;
-                    break;
-                }
-                
-                // convert top of stack to a float
-                case 8: {
-                    float f = (float)popv();
-                    //unsigned char *tmp = (unsigned char *)malloc(4);
-                    memcpy(&stack[pstack++], &f, 4);                    
-                    break;
-                }
+                    break;                
                 
                 case 9:
                     arith_mode = ARITH_CHAR;
