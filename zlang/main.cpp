@@ -9,6 +9,7 @@
 #include <set>
 #include <map>
 #include <fstream>
+#include <time.h>
 
 //Token types
 #define INTEGER "INTEGER"
@@ -25,19 +26,20 @@
 #define ASSIGN "ASSIGN"
 #define VARIABLE "VARIABLE"
 #define STATEMENT_LIST "STATEMENT_LIST"
-#define WRITE "write"
-#define READ "read"
 #define EQUALITY "EQUALITY"
-#define IF "if"
 #define LBRACKET "LBRACKET"
 #define RBRACKET "RBRACKET"
 #define LESSTHAN "LESSTHAN"
 #define MORETHAN "MORETHAN"
 #define EMPTY "EMPTY"
+#define IF "if"
 #define ELSE "else"
 #define WHILE "while"
 #define ENDL "endl"
+#define WRITE "write"
+#define READ "read"
 #define STRLEN "strlen"
+#define STRCMP "strcmp"
 
 //Containers to store reserved keywords, variables : value and types
 std::set< std::string > RESERVED_KEYWORDS;
@@ -46,6 +48,7 @@ std::map<std::string, std::string> VARIABLE_TYPES;
 std::map<std::string, int> VARIABLE_IDX;
 
 int variable_idx = 0;
+int label_idx = 0;
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 //	LEXER
@@ -204,17 +207,22 @@ std::string Lexer::integer()
 
 std::string Lexer::get_string()
 {
-	// std::cout<<"get_string()\n";
 	std::string str;
-	advance_pos();
-	while(current_char != '\"')
-	{
-		// std::cout<<"current_char = "<<current_char<<"\n";
-		str.push_back(current_char);
-		advance_pos();
-	}
-	advance_pos();
-	return str;
+    advance_pos(); // remove first '"'                   
+    while(current_char != '\"') {    
+        // Escape characters in strings (t, n, r, b, f, '"')
+        if(current_char == '\\' && peek() == '"') { str.push_back('"'); advance_pos(); }
+        else if(current_char == '\\' && peek() == 't') { str.push_back('\t'); advance_pos(); } 
+        else if(current_char == '\\' && peek() == 'n') { str.push_back('\n'); advance_pos(); } 
+        else if(current_char == '\\' && peek() == 'r') { str.push_back('\r'); advance_pos(); } 
+        else if(current_char == '\\' && peek() == 'b') { str.push_back('\b'); advance_pos(); }
+        else if(current_char == '\\' && peek() == 'f') { str.push_back('\f'); advance_pos(); }  
+        else if(current_char == '\\' && peek() == '\\') { str.push_back('\\'); advance_pos(); }  
+        else { str.push_back(current_char); } 
+        advance_pos();        
+    } 
+    advance_pos(); // remove last '"'
+    return str;
 }
 
 //Only peeks into input buffer without actually consuming the next character
@@ -433,7 +441,7 @@ public:
 	//Method to print AST, AST means level of node, root is at level zero
 	void show(int level)
 	{
-		std::cout<<"Token: level = "<<level<<"  type = "<<(token._type())<<"  value = "<<(token._value())<<std::endl;
+        std::cout << ";" << std::string(level*2, ' ') << "Token: level = " << level << "  type = "<<(token._type())<<"  value = "<<(token._value())<<std::endl;
 		for(auto it = child.begin(); it != child.end(); it++)
 			(*it)->show(level+1);
 	}
@@ -491,6 +499,7 @@ public:
 	//read : read LPAREN expr() RPAREN
 	ASTNode read();
     ASTNode strlen();
+    ASTNode _strcmp();
 	//conditional operator : left OPERATOR right
 	ASTNode conditional();
 	//if : IF LPAREN Conditional RPAREN ( ( LBACKET statement_list RBRACKET ) | statement ) (EMPTY | ELSE ( ( LBACKET statement_list RBRACKET ) | statement ) )
@@ -540,6 +549,11 @@ ASTNode Parser::statement()
     else if(current_token._type() == STRLEN)
 	{
 		node = strlen();
+		eat(SEMI);
+	}
+    else if(current_token._type() == STRCMP)
+	{
+		node = _strcmp();
 		eat(SEMI);
 	}
 	else if(current_token._type() == IF)
@@ -622,6 +636,16 @@ ASTNode Parser::factor()
 	{
 		ASTNode node(current_token);
 		eat(ENDL);
+		return node;
+	}
+    else if(current_token._type() == STRLEN)
+	{
+		ASTNode node = strlen();
+        return node;
+	}
+    else if(current_token._type() == STRCMP)
+	{
+		ASTNode node = _strcmp();
 		return node;
 	}
 	else error();
@@ -711,6 +735,22 @@ ASTNode Parser::strlen()
 	eat(COMMA);
     node.make_child(variable());
     eat(RPAREN);
+
+	return node;
+}
+
+ASTNode Parser::_strcmp()
+{
+	eat(STRCMP);
+	eat(LPAREN);
+	ASTNode node(Token(STRCMP, STRCMP));
+	node.make_child(variable()); 
+	eat(COMMA);
+    node.make_child(variable());
+    eat(COMMA);
+    node.make_child(variable());
+    eat(RPAREN);
+
 	return node;
 }
 
@@ -826,54 +866,102 @@ public:
 			return (Token(INTEGER, "0"));
 		}
 
+        if(node._token()._type() == EMPTY)
+		{
+			return Token(INTEGER, "0");
+		}
+        
+        // variable assignment
+        // @todo variable at rhs
 		if(node._token()._type() == ASSIGN)
 		{
-			/*
             
-            int:
-                int 10 ; arith_int
-                int 2 ; rw_int
-                push 1984
-                push 1 ; length
-                push 1 ; address               
-                puts
+            printf("; ASSIGN START\n");            
+
+            // check if it already exist
+            auto it = GLOBAL_SCOPE.find(node.child[0]->_token()._value());
+
+            // if it does not already exist
+            // create new
+            if(it == GLOBAL_SCOPE.end()) { 
+
+                GLOBAL_SCOPE[node.child[0]->_token()._value()] = node.child[1]->_token()._value();
+                VARIABLE_TYPES[node.child[0]->_token()._value()] = node.child[1]->_token()._type();            
+                VARIABLE_IDX[node.child[0]->_token()._value()] = variable_idx;
                 
-            float:
-                int 11 ; arith_float
-                int 2 ; rw_int
-                mov ax 1984
-                mov bx 1000
-                div ax bx
-                push ax
-                push 1 ; length
-                push 1 ; address               
-                puts
-            
-            string:
-                si ax
-                push "Hello world"
-                si bx
-                sub bx ax
-                push bx ; length
-                push 1 ; address
-                puts
+                // if rhs is string
+                if(node.child[1]->_token()._type() == STRING) {
+                    printf("; create string variable at memory location '%d'\n", variable_idx);
+                    printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\n", node.child[1]->_token()._value().c_str());
+                    printf("push %d ; address\nputs\n\n", variable_idx);
+                }
                 
-            */
+                // if rhs is integer
+                else if(node.child[1]->_token()._type() == INTEGER) {
+                    printf("; create INTEGER variable at memory location '%d'\n", variable_idx);
+                    printf("int 2\nint 10\npush %s\npush 1\npush %d ; address\nputs\n", node.child[1]->_token()._value().c_str(), variable_idx);
+                }
+                
+                // if rhs is variable
+                else if(node.child[1]->_token()._type() == VARIABLE) {  
+                
+                    // check type
+                    if(VARIABLE_TYPES[node.child[1]->_token()._value()] == INTEGER) {
+                        
+                        printf("; create INTEGER variable at memory location '%d'\n", variable_idx);
+                        printf("int 2\nint 10\npush %s\npush 1\npush %d ; address\nputs\n", GLOBAL_SCOPE[node.child[1]->_token()._value()].c_str(), variable_idx);
+                        
+                    }
+                        
+                    else if(VARIABLE_TYPES[node.child[1]->_token()._value()] == STRING) {
+                        
+                        printf("; create string variable at memory location '%d'\n", variable_idx);
+                        printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\n", GLOBAL_SCOPE[node.child[1]->_token()._value()].c_str());
+                        printf("push %d ; address\nputs\n\n", variable_idx);
+                    
+                    } 
+                
+                }
+                    
+                variable_idx++;
             
-            Token token = visit(*node.child[1]);
+            } else {
             
-			GLOBAL_SCOPE[node.child[0]->_token()._value()] = token._value();
-			VARIABLE_TYPES[node.child[0]->_token()._value()] = token._type();
-            
-            VARIABLE_IDX[node.child[0]->_token()._value()] = variable_idx;
-            
-            //printf("\n<call for ASSIGN %d (%s)>\n", variable_idx, token._value().c_str());
-            if(token._type() == STRING)
-                printf("; create string variable \"%s\" at memory location '%d'\nint 1 ; rw_char\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx ; length\npush %d ; address\nputs\n\n", node.child[0]->_token()._value().c_str(), variable_idx, token._value().c_str(), variable_idx);
-            else
-                printf("; create 'int' variable \"%s\" at memory location '%d'\nint 2; rw_int\npush %s\npush 1\npush %d\nputs\n\n", node.child[0]->_token()._value().c_str(), variable_idx, token._value().c_str(), variable_idx);
-			
-            variable_idx++;
+                 if(node.child[1]->_token()._type() == STRING) {
+                    printf("; assign existing string variable at memory location '%d'\n", VARIABLE_IDX[node.child[0]->_token()._value()]); 
+                    printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\n", node.child[1]->_token()._value().c_str());
+                    printf("push %d ; address\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                }
+                
+                else  if(node.child[1]->_token()._type() == INTEGER) {
+                    printf("; assign existing integer variable at memory location '%d'\n", VARIABLE_IDX[node.child[0]->_token()._value()]); 
+                    printf("int 2\nint 10\n push %s\npush 1 ; length\npush %d\nputs\n", node.child[1]->_token()._value().c_str(), VARIABLE_IDX[node.child[0]->_token()._value()]);
+                }
+                
+                // if rhs is variable
+                else if(node.child[1]->_token()._type() == VARIABLE) {
+
+                    // check type
+                    if(VARIABLE_TYPES[node.child[1]->_token()._value()] == INTEGER) {
+                        
+                        printf("; create INTEGER variable at memory location '%d'\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                        printf("int 2\nint 10\npush %s\npush 1\npush %d ; address\nputs\n", node.child[1]->_token()._value().c_str(), VARIABLE_IDX[node.child[0]->_token()._value()]);
+                        
+                    }
+                        
+                    else if(VARIABLE_TYPES[node.child[1]->_token()._value()] == STRING) {
+                        
+                        printf("; create string variable at memory location '%d'\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                        printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\n", node.child[1]->_token()._value().c_str());
+                        printf("push %d ; address\nputs\n\n", variable_idx);
+                    
+                    }
+                
+                }
+                
+            }
+
+            printf("; ASSIGN END\n\n");
             
             return (Token(INTEGER, "0"));
             
@@ -881,125 +969,102 @@ public:
 
 		if(node._token()._type() == VARIABLE)
 		{
-			
-            /*
-            
-            */
 
             auto it = GLOBAL_SCOPE.find(node._token()._value());
 			if(it == GLOBAL_SCOPE.end())
 				error("Garbage value in "+node._token()._value());
-			auto i = VARIABLE_TYPES.find(node._token()._value());
+			
+            auto i = VARIABLE_TYPES.find(node._token()._value());
 			if(i == GLOBAL_SCOPE.end())
-				error("Error while determining datatype of "+node._token()._value());
-                
-            //printf("\n<call for VARIABLE %d (%s)>\n", VARIABLE_IDX[node._token()._value()], it->second.c_str());
+				error("Error while determining datatype of "+node._token()._value());         
             
-            printf("; push address of variable \"%s\" onto the stack\npush %d\n\n", node._token()._value().c_str(), VARIABLE_IDX[node._token()._value()]);
-                
-			if(i->second == INTEGER)
-				return Token(INTEGER, it->second);
+            if(i->second == INTEGER) {
+            
+                printf("; variable '%s' (INTEGER) at memory location %d\n", node._token()._value().c_str(), VARIABLE_IDX[node._token()._value()]);
+                printf("int 2\nint 10\npush %d\ngets\n\n", VARIABLE_IDX[node._token()._value()]);
+            
+            }
+            else if(i->second == STRING) { 
+            
+                printf("; variable '%s' (STRING) at memory location %d\nint 1\nint 9\npush %d\ngets\n\n", node._token()._value().c_str(), VARIABLE_IDX[node._token()._value()], VARIABLE_IDX[node._token()._value()]);
+            
+            }
+                   
+            if(i->second == INTEGER)
+				return Token(INTEGER, it->second);  
 			else if(i->second == STRING)
 				return Token(STRING, it->second);
-                
+   
 		}
 
 		if(node._token()._type() == INTEGER)
 		{
-        
-            /*
+
+            // push it on the stack
+            printf("; integer literal\n");           
+            printf("int 2\nint 10\n");
+            printf("push %s\n\n", node._token()._value().c_str());
+           
+            return node._token();
             
-            int 10 ; arith_int
-            push 1 ; addr
-            push 0 ; pos
-            ldm
-            
-            */
-			return node._token();
 		}
 
 		if(node._token()._type() == STRING)
 		{
-			/*
+
+            // push the string on the stack
+            printf("; string literal\n");            
+            printf("int 1\nint 9\n");
+            printf("push \"%s\"\n\n", node._token()._value().c_str());
             
-            int 9 ; arith_int
-            push 1 ; addr
-            gets
-            
-            */
             return node._token();
+            
 		}
 
 		//Unary plus or binary plus
 		if(node._token()._type() == PLUS)
 		{
 
-			//Unary Plus: Applicable for both integer addition and string concatanation
-			if(node.child.size() == 1)
-			{
-				return visit(*(node.child[0]));
-			}
-
-			Token temp1, temp2;
+			printf("; ADDITION START\n");
+            
+            Token temp1, temp2;
 			temp1 = visit(*(node.child[0]));
 			temp2 = visit(*(node.child[1]));
 
-			//if any of child is string, then do simple string concatanation
-			if(temp1._type() == STRING or temp2._type() == STRING)
-			{
-				result = temp1._value() + temp2._value();
-				return Token(STRING, result);
-			}
-			//INTEGER ADDITION
-			else
-			{
-				std::string str1 = temp1._value();
-				std::string str2 = temp2._value();
-				//If both operands are integer only then return without decimals
-				if(str1.find('.') == std::string::npos and str2.find('.') == std::string::npos)
-					result = std::to_string(std::stoi(temp1._value()) + std::stoi(temp2._value()));
-				//if any of th operands is double type, then return with decimals
-				else result = std::to_string(std::stod(temp1._value()) + std::stod(temp2._value()));
-				return Token(INTEGER, result);				
-			}
+            printf("pop bx\npop ax\nadd ax bx\npush ax\n\n");
+                
+			return Token(INTEGER, "0"); //return Token(INTEGER, result);
+            
 		}
 		
 		//Unary minus or binary minus
 		if(node._token()._type() == MINUS)
 		{
-			//Unary Minus
-			if(node.child.size() == 1)
-			{
-				Token temp = visit(*(node.child[0]));
-				std::string str = temp._value();
-				if(str.find('.') == std::string::npos)
-					result = std::to_string( - std::stoi(temp._value()));
-				else result = std::to_string( - std::stod(temp._value()));
-				return Token(INTEGER, result);
-			}
-			//Binary Minus
-			else
-			{				
-				Token temp1, temp2;
-				temp1 = visit(*(node.child[0]));
-				temp2 = visit(*(node.child[1]));
-				std::string str1 = temp1._value();
-				std::string str2 = temp2._value();
-				//If both operands are integer only then return without decimals
-				if(str1.find('.') == std::string::npos and str2.find('.') == std::string::npos)
-					result = std::to_string(std::stoi(temp1._value()) - std::stoi(temp2._value()));
-				//if any of th operands is double type, then return wiht decimals
-				else result = std::to_string(std::stod(temp1._value()) - std::stod(temp2._value()));
-				return Token(INTEGER, result);
-			}
+			
+            printf("; SUBTRACION START\n");
+            
+            Token temp1, temp2;
+			temp1 = visit(*(node.child[0]));
+			temp2 = visit(*(node.child[1]));
+            
+            printf("pop bx\npop ax\nsub ax bx\npush ax\n");
+                
+            printf("; SUBTRACION END\n");
+                
+			return Token(INTEGER, "0");//return Token(INTEGER, result);
+
 		}
 
 		if(node._token()._type() == MUL)
 		{
-			Token temp1, temp2;
+			           
+            printf("; MULTIPLICATION START\n");
+            
+            Token temp1, temp2;
 			temp1 = visit(*(node.child[0]));
 			temp2 = visit(*(node.child[1]));
-			std::string str1 = temp1._value();
+			/*
+            std::string str1 = temp1._value();
 			std::string str2 = temp2._value();
 			//If both operands are integer only then do integer multiplication and return without decimals
 			if(str1.find('.') == std::string::npos and str2.find('.') == std::string::npos)
@@ -1007,13 +1072,26 @@ public:
 			//if any of th operands is double type, then return with decimal digits
 			else result = std::to_string(std::stod(temp1._value()) * std::stod(temp2._value()));
 			return Token(INTEGER, result);
+            */
+            
+            printf("pop bx\npop ax\nmul ax bx\npush ax\n");
+            
+            printf("; MULTIPLICATION END\n");
+            
+            return Token(INTEGER, "0");
+            
 		}
 		
 		if(node._token()._type() == DIV)
 		{
+        
+            printf("; division\n");
+             
 			Token temp1, temp2;
 			temp1 = visit(*(node.child[0]));
 			temp2 = visit(*(node.child[1]));
+            
+            /*
 			std::string str1 = temp1._value();
 			std::string str2 = temp2._value();
 			//If both operands are integer only then do integer division and return quotient of division
@@ -1022,8 +1100,15 @@ public:
 			//if any of th operands is double type, do double division
 			else result = std::to_string(std::stod(temp1._value()) / std::stod(temp2._value()));
 			return Token(INTEGER, result);
+            */
+            
+            printf("pop bx\npop ax\ndiv ax bx\npush ax\n\n");
+            
+            return Token(INTEGER, "0");
+            
 		}
 		
+        // @todo
 		if(node._token()._type() == MOD)
 		{
 			Token temp1, temp2;
@@ -1033,48 +1118,492 @@ public:
 			return Token(INTEGER, result);
 		}
 
-		if(node._token()._type() == WRITE)
+        // can be equality, less than or more than
+		if(node._token()._type() == IF)
 		{
-			Token token = visit(*node.child[0]);
-            //printf("\n<call to WRITE %d (%s)>\n", VARIABLE_IDX[token._value()], token._value().c_str());
-            if(VARIABLE_TYPES[node.child[0]->_token()._value()] == STRING)
-                printf("; address of variable \"%s\" (%d) should be on the stack\nwrite\n\n", node.child[0]->_token()._value().c_str(), VARIABLE_IDX[node.child[0]->_token()._value()]);
-            else
-                printf("; address of variable \"%s\" (%d) should be on the stack\nint 1; rw_char\ngets\npush 'd'\nprint\n\n", node.child[0]->_token()._value().c_str(), VARIABLE_IDX[token._value()]);
-			//std::cout<<token._value();
+
+            std::string funcName = "conditional_statement_" + std::to_string(label_idx++);
+            printf("%s:\n\n", funcName.c_str());
+            
+            // condition get pushed onto the stack
+            Token token = visit(*node.child[0]);
+
+            printf("jnz %s_else\n\n" , funcName.c_str());
+            
+            // visit the condition if true
+            visit(*node.child[1]);
+            
+            // jmp to end
+            printf("jmp %s_end\n\n", funcName.c_str());
+     
+            printf("%s_else:\n\n", funcName.c_str());
+            
+            // visit the else node
+            visit(*node.child[2]);
+            
+            printf("%s_end:\n\n", funcName.c_str());
+            
+			return Token(INTEGER, "0"); //return temp;
+            
+		}
+        
+        // can be equality, less than or more than
+		if(node._token()._type() == WHILE)
+		{
+
+            std::string funcName = "conditional_statement_" + std::to_string(label_idx++);
+            
+            printf("%s:\n\n", funcName.c_str());
+
+            //printf("%s_loop:\n\n", funcName.c_str());
+            
+            visit(*node.child[1]);
+            
+            printf("; body executed..\n\n");
+            
+            visit(*node.child[0]);
+            
+            printf("jz %s\n\n", funcName.c_str());
+            //printf("jz %s_loop\n\n", funcName.c_str());
+
 			return Token(INTEGER, "0");
+            
+		}
+
+        // good 
+		if(node._token()._type() == EQUALITY)
+		{
+        
+			// No need to visit right now
+            Token token0; // = visit(*node.child[0]);
+			Token token1; // = visit(*node.child[1]);
+            
+            int mode = 0; // rw bytes
+
+            /*                     
+            string literal at -1            
+            */
+            if(node.child[0]->_token()._type() == STRING) {
+                // push it on the stack and store at -1
+                printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\npush -1 ; address\nputs\n\n", node.child[0]->_token()._value().c_str());                
+                // get first character and store again but as int at -1
+                printf("push -1\npush 0\nldm\nint 2 ; rw_int\npush 1 ; length\npush -1 ; address\nputs\n\n");                
+            }
+            /*
+            integer literal at -1
+            */
+            else if(node.child[0]->_token()._type() == INTEGER) {
+            
+                  // push it on the stack and store at -1
+                  printf("int 2\nint 10\npush %s\npush 1\npush -1\nputs\n\n", node.child[0]->_token()._value().c_str());
+                  mode = 1;
+                  
+            }
+            
+            /*                     
+            variable at -1
+            */ 
+            else if(node.child[0]->_token()._type() == VARIABLE) {    
+
+                if(VARIABLE_TYPES[node.child[0]->_token()._value()] == INTEGER) {
+                    
+                    // get it on the stack and store at -1
+                    printf("int 2\nint 10\npush %d\ngets\npush 1\npush -1\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                    
+                    // no need to convert
+                    //printf("push -1\ngets\npush 1 ; length\npush -1 ; address\nputs\n\n");
+                    
+                    mode = 1;
+                    
+                }
+                    
+                else if(VARIABLE_TYPES[node.child[0]->_token()._value()] == STRING) {
+                    
+                    // get it on the stack and store at -1
+                    printf("int 1\nint 9\nsi ax\npush %d ; address\ngets\nsi bx\nsub bx ax\npush bx\npush -1 ; address\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                    
+                    // get first character and store again but as int at -1
+                    printf("push -1\npush 0\nldm\nint 2 ; rw_int\nint 10\npush 1 ; length\npush -1 ; address\nputs\n\n");
+                
+                }
+                
+            }
+            
+            /*                     
+            string literal at -2           
+            */
+            if(node.child[1]->_token()._type() == STRING) {
+                
+                printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\npush -2\nputs\n\n", node.child[1]->_token()._value().c_str());
+                printf("push -2\npush 0\nldm\npush 1 ; length\npush -2 ; address\nint 2 ; rw_int\nputs\n\n");
+                
+            }
+            
+            /*
+            integer literal at -2
+            good
+            */
+            else if(node.child[1]->_token()._type() == INTEGER) {
+                printf("int 2\nint 10\npush %s\npush 1\npush -2\nputs\n\n", node.child[1]->_token()._value().c_str());
+                mode = 1;
+            }
+            
+            /*                     
+            variable at -2            
+            */
+            else if(node.child[1]->_token()._type() == VARIABLE) {    
+                
+                // good
+                if(VARIABLE_TYPES[node.child[1]->_token()._value()] == INTEGER) {
+                    printf("int 2\nint 10\npush %d\ngets\npush 1\npush -2\nputs\n\n", VARIABLE_IDX[node.child[1]->_token()._value()]);
+                    printf("push -2\ngets\npush 1 ; length\npush -2 ; address\nputs\n\n");
+                    mode = 1;
+                }
+                    
+                else if(VARIABLE_TYPES[node.child[1]->_token()._value()] == STRING) {
+                    printf("int 1\nint 9\nsi ax\npush %d ; address\ngets\nsi bx\nsub bx ax\npush bx\npush -2 ; store at -2\nputs\n\n", VARIABLE_IDX[node.child[1]->_token()._value()]);
+                    printf("push -2\npush 0\nldm\npush 1 ; length\npush -2 ; address\nint 2 ; rw_int\nputs\n\n");
+                }
+                
+            }
+            
+            // compare in memory
+            //printf("push -1\npush -2\ncmp\n\n");
+            
+		    // compare on the stack
+            printf("int 2\nint 10\npush -1\ngets\npush -2\ngets\neq\n");
+            
+            return Token(INTEGER, "0");
+            
+		}
+
+        // good
+		if(node._token()._type() == LESSTHAN)
+		{
+        
+            // No need to visit right now
+            Token token0; // = visit(*node.child[0]);
+			Token token1; // = visit(*node.child[1]);
+            
+            int mode = 0; // rw bytes
+
+            /*                     
+            string literal at -1            
+            */
+            if(node.child[0]->_token()._type() == STRING) {
+                // push it on the stack and store at -1
+                printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\npush -1 ; address\nputs\n\n", node.child[0]->_token()._value().c_str());                
+                // get first character and store again but as int at -1
+                printf("push -1\npush 0\nldm\nint 2 ; rw_int\npush 1 ; length\npush -1 ; address\nputs\n\n");                
+            }
+            /*
+            integer literal at -1
+            */
+            else if(node.child[0]->_token()._type() == INTEGER) {
+            
+                  // push it on the stack and store at -1
+                  printf("int 2\nint 10\npush %s\npush 1\npush -1\nputs\n\n", node.child[0]->_token()._value().c_str());
+                  mode = 1;
+                  
+            }
+            
+            /*                     
+            variable at -1
+            */ 
+            else if(node.child[0]->_token()._type() == VARIABLE) {    
+
+                if(VARIABLE_TYPES[node.child[0]->_token()._value()] == INTEGER) {
+                    
+                    // get it on the stack and store at -1
+                    printf("int 2\nint 10\npush %d\ngets\npush 1\npush -1\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                    
+                    // no need to convert
+                    //printf("push -1\ngets\npush 1 ; length\npush -1 ; address\nputs\n\n");
+                    
+                    mode = 1;
+                    
+                }
+                    
+                else if(VARIABLE_TYPES[node.child[0]->_token()._value()] == STRING) {
+                    
+                    // get it on the stack and store at -1
+                    printf("int 1\nint 9\nsi ax\npush %d ; address\ngets\nsi bx\nsub bx ax\npush bx\npush -1 ; address\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                    
+                    // get first character and store again but as int at -1
+                    printf("push -1\npush 0\nldm\nint 2 ; rw_int\npush 1 ; length\npush -1 ; address\nputs\n\n");
+                
+                }
+                
+            }
+            
+            /*                     
+            string literal at -2           
+            */
+            if(node.child[1]->_token()._type() == STRING) {
+                
+                printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\npush -2\nputs\n\n", node.child[1]->_token()._value().c_str());
+                printf("push -2\npush 0\nldm\npush 1 ; length\npush -2 ; address\nint 2 ; rw_int\nputs\n\n");
+                
+            }
+            
+            /*
+            integer literal at -2
+            good
+            */
+            else if(node.child[1]->_token()._type() == INTEGER) {
+                printf("int 2\nint 10\npush %s\npush 1\npush -2\nputs\n\n", node.child[1]->_token()._value().c_str());
+                mode = 1;
+            }
+            
+            /*                     
+            variable at -2            
+            */
+            else if(node.child[1]->_token()._type() == VARIABLE) {    
+                
+                // good
+                if(VARIABLE_TYPES[node.child[1]->_token()._value()] == INTEGER) {
+                    printf("int 2\nint 10\npush %d\ngets\npush 1\npush -2\nputs\n\n", VARIABLE_IDX[node.child[1]->_token()._value()]);
+                    printf("push -2\ngets\npush 1 ; length\npush -2 ; address\nputs\n\n");
+                    mode = 1;
+                }
+                    
+                else if(VARIABLE_TYPES[node.child[1]->_token()._value()] == STRING) {
+                    printf("int 1\nint 9\nsi ax\npush %d ; address\ngets\nsi bx\nsub bx ax\npush bx\npush -2 ; store at -2\nputs\n\n", VARIABLE_IDX[node.child[1]->_token()._value()]);
+                    printf("push -2\npush 0\nldm\npush 1 ; length\npush -2 ; address\nint 2 ; rw_int\nputs\n\n");
+                }
+                
+            }
+            
+            // compare in memory
+            //printf("push -1\npush -2\ncmp\n\n");
+            
+		    // compare on the stack
+            printf("int 2\nint 10\npush -2\ngets\npush -1\ngets\nlt\n");
+            
+            return Token(INTEGER, "0");
+            
+		}
+
+        // good
+		if(node._token()._type() == MORETHAN)
+		{
+        
+            // No need to visit right now
+            Token token0; // = visit(*node.child[0]);
+			Token token1; // = visit(*node.child[1]);
+            
+            int mode = 0; // rw bytes
+
+            /*                     
+            string literal at -1            
+            */
+            if(node.child[0]->_token()._type() == STRING) {
+                // push it on the stack and store at -1
+                printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\npush -1 ; address\nputs\n\n", node.child[0]->_token()._value().c_str());                
+                // get first character and store again but as int at -1
+                printf("push -1\npush 0\nldm\nint 2 ; rw_int\npush 1 ; length\npush -1 ; address\nputs\n\n");                
+            }
+            /*
+            integer literal at -1
+            */
+            else if(node.child[0]->_token()._type() == INTEGER) {
+            
+                  // push it on the stack and store at -1
+                  printf("int 2\nint 10\npush %s\npush 1\npush -1\nputs\n\n", node.child[0]->_token()._value().c_str());
+                  mode = 1;
+                  
+            }
+            
+            /*                     
+            variable at -1
+            */ 
+            else if(node.child[0]->_token()._type() == VARIABLE) {    
+
+                if(VARIABLE_TYPES[node.child[0]->_token()._value()] == INTEGER) {
+                    
+                    // get it on the stack and store at -1
+                    printf("int 2\nint 10\npush %d\ngets\npush 1\npush -1\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                    
+                    // no need to convert
+                    //printf("push -1\ngets\npush 1 ; length\npush -1 ; address\nputs\n\n");
+                    
+                    mode = 1;
+                    
+                }
+                    
+                else if(VARIABLE_TYPES[node.child[0]->_token()._value()] == STRING) {
+                    
+                    // get it on the stack and store at -1
+                    printf("int 1\nint 9\nsi ax\npush %d ; address\ngets\nsi bx\nsub bx ax\npush bx\npush -1 ; address\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                    
+                    // get first character and store again but as int at -1
+                    printf("push -1\npush 0\nldm\nint 2 ; rw_int\npush 1 ; length\npush -1 ; address\nputs\n\n");
+                
+                }
+                
+            }
+            
+            /*                     
+            string literal at -2           
+            */
+            if(node.child[1]->_token()._type() == STRING) {
+                
+                printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\npush -2\nputs\n\n", node.child[1]->_token()._value().c_str());
+                printf("push -2\npush 0\nldm\npush 1 ; length\npush -2 ; address\nint 2 ; rw_int\nputs\n\n");
+                
+            }
+            
+            /*
+            integer literal at -2
+            good
+            */
+            else if(node.child[1]->_token()._type() == INTEGER) {
+                printf("int 2\nint 10\npush %s\npush 1\npush -2\nputs\n\n", node.child[1]->_token()._value().c_str());
+                mode = 1;
+            }
+            
+            /*                     
+            variable at -2            
+            */
+            else if(node.child[1]->_token()._type() == VARIABLE) {    
+                
+                // good
+                if(VARIABLE_TYPES[node.child[1]->_token()._value()] == INTEGER) {
+                    printf("int 2\nint 10\npush %d\ngets\npush 1\npush -2\nputs\n\n", VARIABLE_IDX[node.child[1]->_token()._value()]);
+                    printf("push -2\ngets\npush 1 ; length\npush -2 ; address\nputs\n\n");
+                    mode = 1;
+                }
+                    
+                else if(VARIABLE_TYPES[node.child[1]->_token()._value()] == STRING) {
+                    printf("int 1\nint 9\nsi ax\npush %d ; address\ngets\nsi bx\nsub bx ax\npush bx\npush -2 ; store at -2\nputs\n\n", VARIABLE_IDX[node.child[1]->_token()._value()]);
+                    printf("push -2\npush 0\nldm\npush 1 ; length\npush -2 ; address\nint 2 ; rw_int\nputs\n\n");
+                }
+                
+            }
+            
+            // compare in memory
+            //printf("push -1\npush -2\ncmp\n\n");
+            
+		    // compare on the stack
+            printf("int 2\nint 10\npush -2\ngets\npush -1\ngets\ngt\n");
+            
+            return Token(INTEGER, "0");
+            
+		}
+        
+        // good
+        if(node._token()._type() == WRITE)
+		{
+        
+			printf("; WRITE START\n");
+         
+            if(node.child[0]->_token()._type() == VARIABLE) {             
+
+                if(VARIABLE_TYPES[node.child[0]->_token()._value()] == STRING) {
+
+                     printf("push %d\nwrite\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                     
+                }    
+                    
+                else if(VARIABLE_TYPES[node.child[0]->_token()._value()] == INTEGER) {
+                
+                    printf("int 2\nint 10\npush %d\ngets\npush 100\nprint\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+                    
+                } 
+                               
+            }
+            
+            else if(node.child[0]->_token()._type() == STRING) 
+                printf("int 1\nint 9\nsi ax\npush \"%s\"\nsi bx\nsub bx ax\npush bx\npush -1\nputs\npush -1\nwrite\n", node.child[0]->_token()._value().c_str());
+
+            else if(node.child[0]->_token()._type() == INTEGER)
+                printf("push %s\npush 'd'\nprint\n", node.child[0]->_token()._value().c_str());
+                
+            printf("; WRITE END\n\n"); 
+               
+			return Token(INTEGER, "0");
+            
 		}
         
         if(node._token()._type() == STRLEN)
 		{
-        
-			// when visiting a 'variable node' it gets pushed onto the stack
-            Token token = visit(*node.child[0]);
-            Token result = visit(*node.child[1]);
+
+            printf("; STRLEN START\n");
             
-            //printf("\n<call to STRLEN %d (%s)>\n", VARIABLE_IDX[token._value()], token._value().c_str());
+            // @todo store copy at address -1
+            std::string funcName = "strlen_statement_" + std::to_string(label_idx++);
+            
+            // add null terminator!
+            printf("int 1\nint 9\nsi ax\npush 0\npush %d\ngets\nsi bx\nsub bx ax\npush bx\npush %d\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()], VARIABLE_IDX[node.child[0]->_token()._value()]);
             
             printf("; get the length of string \"%s\" and store it in variable \"%s\"\n", node.child[0]->_token()._value().c_str(), node.child[1]->_token()._value().c_str());
             printf("int 1 ; rw_char\n");
             printf("int 9 ; arith_char\n");
-            printf("pop r3 ; get address of variable \"%s\" off the stack\n", node.child[1]->_token()._value().c_str());
-            printf("pop r1 ; get address of variable \"%s\" off the stack\n", node.child[0]->_token()._value().c_str());
-            printf("mov r2 0 ; position of current character, start at position 0\n");
-            printf("strlen_loop:\n");
-            printf("    ldr r1 ; address of variable \"%s\"\n", node.child[0]->_token()._value().c_str());
-            printf("    ldr r2 ; position of character\n");
-            printf("    ldm\n");
-            printf("    push 0 ; 0 marks the end of the string\n");
-            printf("    eq\n");
-            printf("    jz strlen_memory_end\n");
-            printf("    inc r2\n");
-            printf("    jmp strlen_loop\n");
-            printf("strlen_memory_end:\n");
-		    printf("    ldr r2 ; the length\n");
-            printf("    push 1\n");
-            printf("    push r3 ; address to store result\n", VARIABLE_IDX[node.child[1]->_token()._value()]); // addr
-            printf("    puts\n\n"); // addr
+            printf("mov r3 %d ; get address of result\n", VARIABLE_IDX[node.child[1]->_token()._value()]);
+            printf("mov r1 %d; get address of variable\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+            printf("mov r2 0 ; position of current character, start at position 0\n\n");
+            
+            printf("%s:\n\n", funcName.c_str());
+            
+            printf("ldr r1 ; address of variable \"%s\"\n", node.child[0]->_token()._value().c_str());
+            printf("ldr r2 ; position of character\n");
+            printf("ldm\n");
+            printf("push 0 ; 0 marks the end of the string\n");
+            printf("eq\n");
+            printf("jz %s_end\n", funcName.c_str());
+            printf("inc r2\n");
+            printf("jmp %s\n\n", funcName.c_str());
+            
+            printf("%s_end:\n\n", funcName.c_str());
+		    printf("ldr r2 ; the length\n");
+            printf("push 1\n");
+            printf("push r3 ; address to store result\n", VARIABLE_IDX[node.child[1]->_token()._value()]); // addr
+            printf("int 2\nint 10\nputs\n"); // addr
             //printf("    int 4\n");
+            
+            printf("; STRLEN END\n\n");
+            
+			return Token(INTEGER, "0");
+            
+		}
+        
+        if(node._token()._type() == STRCMP)
+		{
+
+            // compare 0 and 1
+            // store result in 3
+            printf("; STRCMP START\n");
+            
+            std::string funcName = "strcmp_statement_" + std::to_string(label_idx++);
+            printf("%s:\n", funcName.c_str());
+            
+            //printf("int 1\nint 9\n");
+            printf("push %d ; address of string 1\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+            printf("push %d ; address of string 2\n", VARIABLE_IDX[node.child[1]->_token()._value()]);
+            
+            // cmp will set zeroflag
+            printf("cmp\n");
+               
+            printf("jnz %s_false\n", funcName.c_str());
+            
+            // if we came here, it was true
+            printf("int 2\nint 10\n");
+            printf("push 1\npush 1\npush %d ; address of string 3\nputs\n\n", VARIABLE_IDX[node.child[2]->_token()._value()]);
+            printf("jmp %s_end\n", funcName.c_str());
+            
+            // we only come here if it was false
+            printf("%s_false:\n", funcName.c_str());
+            // store 0 in variable 3
+            printf("int 2\nint 10\n");
+            printf("push 0\npush 1\npush %d ; address of string 3\n", VARIABLE_IDX[node.child[2]->_token()._value()]);
+            printf("puts\n\n");
+
+            printf("%s_end:\n\n", funcName.c_str());
+            
+            // store result in ax
+            //printf("; leave result in ax\nint 2\nint 10\npush %d\ngets\npop ax\n", VARIABLE_IDX[node.child[2]->_token()._value()]);
+            
+            printf("; STRCMP END\n\n");
             
 			return Token(INTEGER, "0");
             
@@ -1082,117 +1611,22 @@ public:
 
 		if(node._token()._type() == READ)
 		{
-			
-            /*
-            std::string str, var;
-			int dec_count = 0; //to count number of dots '.' in input
-			var = node.child[0]->_token()._value(); //var stores name of variable
-			std::getline(std::cin, str); //str stores value of var
-			GLOBAL_SCOPE[var] = str;
-			//flag = true means input is string type, flag = false means input is integer type
-			bool flag = false;
-			for(auto it = str.begin(); it != str.end(); it++)
-			{
-				if((*it < 48 or *it > 57) and *it != '.' and *it != '-')
-					flag = true;
-				if(*it == '.')
-					dec_count++;
-				if(it != str.begin() and *it == '-') // -4 will be considered integer and 4-5 will be considered string
-					flag = true;
-			}
-			//One decimal is allowed in integer, two decimal points means STRING
-			if(dec_count > 1)
-				flag = true;
-			auto it = VARIABLE_TYPES.find(var);
-			//if input is a string, no matter what was earlier datatype, new datatype of var will be STRING
-			if(flag)
-				VARIABLE_TYPES[var] = STRING;
-			//input is a number and initially var was not used or has INTEGER datatype
-			else if(it == VARIABLE_TYPES.end() or it->second == INTEGER)
-				VARIABLE_TYPES[var] = INTEGER;
-			else VARIABLE_TYPES[var] = STRING;
-            */
-            
+
             //printf("<READ '%s' at memory location '%d'>\n", node.child[0]->_token()._value().c_str(), VARIABLE_IDX[node.child[0]->_token()._value()]);
-            printf("; read input into memory\npush %d\nstr r1\nread\n\n; remove trailing null terminator\nsi ax\nldr r1\ngets\nsi bx\nsub bx ax\ndec bx\nldr bx\nldr r1\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+            
+            //printf("; read input into memory\npush %d ; address\nstr r1\nread\n\n; remove trailing null terminator\nsi ax\nldr r1\ngets\nsi bx\nsub bx ax\ndec bx\nldr bx\nldr r1\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+            printf("; read input into memory\n");
+            printf("push %d ; address\nstr r1\nread\n\n; remove trailing null terminator\nsi ax\nldr r1\ngets\nsi bx\nsub bx ax\nldr bx\nldr r1\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
             
 			return Token(INTEGER, "0");
             
-		}
-
-		if(node._token()._type() == IF)
-		{
-            
-			Token token = visit(*node.child[0]);
-			Token temp;
-			if(token._value() == "1") //if conditional() returns 1(means TRUE) then execute statement_list, else do nothing
-				temp = visit(*node.child[1]);
-			else temp = visit(*node.child[2]); //else part
-
-			return temp;
-            
-		}
-
-		if(node._token()._type() == EQUALITY)
-		{
-			Token token0 = visit(*node.child[0]);
-			Token token1 = visit(*node.child[1]);
-			if(token0._value() == token1._value() and token0._type() == token1._type())
-				return Token(INTEGER, "1");
-			else return Token(INTEGER, "0");
-		}
-
-		if(node._token()._type() == LESSTHAN)
-		{
-			Token token0 = visit(*node.child[0]);
-			Token token1 = visit(*node.child[1]);
-			if(token0._type() != token1._type())
-			{
-				error("Comparing different datatypes");
-			}
-			else if(token0._type() == INTEGER and std::stod(token0._value()) < std::stod(token1._value()))
-				return Token(INTEGER, "1");
-			else if(token0._type() == STRING and token0._value() < token1._value())
-				return Token(INTEGER, "1");
-			else return Token(INTEGER, "0");
-		}
-
-		if(node._token()._type() == MORETHAN)
-		{
-			Token token0 = visit(*node.child[0]);
-			Token token1 = visit(*node.child[1]);
-			if(token0._type() != token1._type())
-			{
-				error("Comparing different datatypes");
-			}
-			else if(token0._type() == INTEGER and std::stod(token0._value()) > std::stod(token1._value()))
-				return Token(INTEGER, "1");
-			else if(token0._type() == STRING and token0._value() > token1._value())
-				return Token(INTEGER, "1");
-			else return Token(INTEGER, "0");
-		}
-
-		if(node._token()._type() == EMPTY)
-		{
-			return Token(INTEGER, "0");
-		}
-
-		if(node._token()._type() == WHILE)
-		{
-			Token token = visit(*node.child[0]);
-			Token temp;
-			while(token._value() == "1") //if conditional() returns 1(means TRUE) then execute statement_list, else do nothing
-			{
-				temp = visit(*node.child[1]);
-				token = visit(*node.child[0]);
-			}
-			return temp;
 		}
 
 		if(node._token()._type() == ENDL)
 		{
 			return Token(STRING, "\n");
 		}
+        
 	}
 
 	Token interpret()
@@ -1224,6 +1658,7 @@ int main(int argc, char const *argv[])
 	RESERVED_KEYWORDS.insert("while");
 	RESERVED_KEYWORDS.insert("endl");
     RESERVED_KEYWORDS.insert("strlen");
+    RESERVED_KEYWORDS.insert("strcmp");
     
 	// argv[1] stores name of file containing bird code
 	// if argv[2] == "details" then show internal details of interpretation
@@ -1245,32 +1680,27 @@ int main(int argc, char const *argv[])
 	Lexer lexer(text);
 	Parser parser(lexer);
 	Interpreter interpreter(parser);
-	
-	//Show internal details
-	if(0)
-	{
-		ASTNode tree = parser.parse();
-		std::cout<<"AST :\n";
-		tree.show(0);
-		std::cout<<"Starts Interpreting\n***************************************************\n";
-		Token result = interpreter.interpret();
-		std::cout<<"***************************************************\nStops Interpreting\n\n";
-		std::cout<<"Status: "<<((result._value() == "0")?"Success\n":"Failed\n\n");		
-		std::cout<<"GLOBAL_SCOPE:\n";
-		for(auto it = GLOBAL_SCOPE.begin(); it!= GLOBAL_SCOPE.end(); it++)
-		{
-			std::cout<<it->first<<"  "<<it->second<<"\n";
-		}
-		std::cout<<"VARIABLE_TYPES:\n";
-		for(auto it = VARIABLE_TYPES.begin(); it!= VARIABLE_TYPES.end(); it++)
-		{
-			std::cout<<it->first<<"  "<<it->second<<"\n";
-		}		
-	}
-	//only runs code
-	else
-	{
-		Token result = interpreter.interpret();
-	}
+
+	printf("; source code generator v1.0 early alpha\n\n");
+    Token result = interpreter.interpret();
+    
+    if(0) {
+    
+        ASTNode tree = parser.parse();
+        tree.show(0);
+        
+        std::cout << "\n;# # # # #\n";
+        
+        for(auto it = GLOBAL_SCOPE.begin(); it!= GLOBAL_SCOPE.end(); it++) {
+        
+            std::cout << ";\t" << VARIABLE_IDX[it->first] << ": " << it->first << " (" << VARIABLE_TYPES[it->first] << ") " << it->second << "\n";
+    
+            std::cout << "\n";
+            
+        }
+    
+    } 
+
 	return 0;
+    
 }
