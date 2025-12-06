@@ -1,7 +1,3 @@
-////////////////////////////////////////////////////////////////////////////////////////////
-//	WINGS : Interpreter for BIRD programming language
-////////////////////////////////////////////////////////////////////////////////////////////
-
 #include <iostream>
 #include <string>
 #include <stdexcept>
@@ -40,6 +36,7 @@
 #define READ "read"
 #define STRLEN "strlen"
 #define STRCMP "strcmp"
+#define SYSTEM "system"
 
 //Containers to store reserved keywords, variables : value and types
 std::set< std::string > RESERVED_KEYWORDS;
@@ -500,6 +497,7 @@ public:
 	ASTNode read();
     ASTNode strlen();
     ASTNode _strcmp();
+	ASTNode _system();
 	//conditional operator : left OPERATOR right
 	ASTNode conditional();
 	//if : IF LPAREN Conditional RPAREN ( ( LBACKET statement_list RBRACKET ) | statement ) (EMPTY | ELSE ( ( LBACKET statement_list RBRACKET ) | statement ) )
@@ -544,6 +542,11 @@ ASTNode Parser::statement()
 	else if(current_token._type() == READ)
 	{
 		node = read();
+		eat(SEMI);
+	}
+	else if(current_token._type() == SYSTEM)
+	{
+		node = _system();
 		eat(SEMI);
 	}
     else if(current_token._type() == STRLEN)
@@ -722,6 +725,18 @@ ASTNode Parser::read()
 	eat(LPAREN);
 	ASTNode node(Token(READ, READ));
 	node.make_child(variable()); //child[0] holds variable whose value is to be taken as input
+	eat(RPAREN);
+	return node;
+}
+
+ASTNode Parser::_system()
+{
+	eat(SYSTEM);
+	eat(LPAREN);
+	ASTNode node(Token(SYSTEM, SYSTEM));
+	node.make_child(variable()); //child[0] holds variable whose value is to be taken as input
+	eat(COMMA);
+	node.make_child(variable());
 	eat(RPAREN);
 	return node;
 }
@@ -1608,7 +1623,7 @@ public:
 			return Token(INTEGER, "0");
             
 		}
-
+		
 		if(node._token()._type() == READ)
 		{
 
@@ -1618,6 +1633,43 @@ public:
             printf("; read input into memory\n");
             printf("push %d ; address\nstr r1\nread\n\n; remove trailing null terminator\nsi ax\nldr r1\ngets\nsi bx\nsub bx ax\nldr bx\nldr r1\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
             
+			return Token(INTEGER, "0");
+            
+		}
+		
+		if(node._token()._type() == SYSTEM)
+		{
+
+/*
+int 1
+int 9
+si ax
+push 0
+push "whoami"
+si bx
+sub bx ax
+push bx
+push 1
+puts
+
+;push 1
+;write
+
+push 1
+push 2
+prc
+
+push 2
+write
+*/
+            //printf("<READ '%s' at memory location '%d'>\n", node.child[0]->_token()._value().c_str(), VARIABLE_IDX[node.child[0]->_token()._value()]);
+            
+            //printf("; read input into memory\npush %d ; address\nstr r1\nread\n\n; remove trailing null terminator\nsi ax\nldr r1\ngets\nsi bx\nsub bx ax\ndec bx\nldr bx\nldr r1\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+            //printf("; read input into memory\n");
+            //printf("push %d ; address\nstr r1\nread\n\n; remove trailing null terminator\nsi ax\nldr r1\ngets\nsi bx\nsub bx ax\nldr bx\nldr r1\nputs\n\n", VARIABLE_IDX[node.child[0]->_token()._value()]);
+            
+			printf("push %d ; \npush %d ; \nprc ;\n\n", VARIABLE_IDX[node.child[0]->_token()._value()], VARIABLE_IDX[node.child[1]->_token()._value()], VARIABLE_IDX[node.child[1]->_token()._value()]);
+			
 			return Token(INTEGER, "0");
             
 		}
@@ -1653,6 +1705,7 @@ int main(int argc, char const *argv[])
 	// set reserved keywords
 	RESERVED_KEYWORDS.insert("write");
 	RESERVED_KEYWORDS.insert("read");
+	RESERVED_KEYWORDS.insert("system");
 	RESERVED_KEYWORDS.insert("if");
 	RESERVED_KEYWORDS.insert("else");
 	RESERVED_KEYWORDS.insert("while");
