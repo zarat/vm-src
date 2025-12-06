@@ -2,6 +2,11 @@
 
 del *.exe 
 
+echo Compiling zlang.exe
+cd zlang
+call _make.bat
+cd ..
+
 echo Compiling as.exe
 cd assembler
 call _make.bat
@@ -13,5 +18,6 @@ call _make.bat
 cd ..
 
 echo Done
+
 
 pause
