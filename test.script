@@ -1,0 +1,25 @@
+run = 1;
+
+while(run > 0) {
+
+	write("> ");
+	in = "";
+	read(in);
+
+	if(in == "check") {
+		write("hit!");
+	}
+
+	if(in == "system") {
+		cmd = "";
+		read(cmd);
+		out = "";
+		system(cmd, out);
+		write(out);
+	}
+
+	if(in == "exit") {
+		run = 0;
+	}
+
+}
