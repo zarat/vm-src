@@ -17,7 +17,9 @@ cd vm
 call _make.bat
 cd ..
 
-echo Done
-
+zlang test.script > test.asm
+as test.asm test.bin
+vm test.bin
 
 pause
+
